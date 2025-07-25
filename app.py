@@ -3,13 +3,13 @@ import base64
 from datetime import datetime 
 from twilio.rest import Client
 
-=== FUNÇÃO PARA DEFINIR FUNDO COM IMAGEM PERSONALIZADA ===
+# === FUNÇÃO PARA DEFINIR FUNDO COM IMAGEM PERSONALIZADA ===
 
 def set_background(png_file): with open(png_file, "rb") as f: data = f.read() encoded = base64.b64encode(data).decode() page_bg = f""" <style> .stApp {{ background-image: url("data:image/png;base64,{encoded}"); background-size: cover; background-position: center; background-repeat: no-repeat; }} </style> """ st.markdown(page_bg, unsafe_allow_html=True)
 
 set_background("fundo_login.png")  # Sua imagem de fundo
 
-=== ESTILO COM CORES PERSONALIZADAS ===
+# === ESTILO COM CORES PERSONALIZADAS ===
 
 st.markdown(""" <style> .stTextInput > div > div > input { background-color: #1f2937; color: white; border: 1px solid #10b981; }
 
@@ -28,7 +28,7 @@ st.markdown(""" <style> .stTextInput > div > div > input { background-color: #1f
 
 """, unsafe_allow_html=True)
 
-=== LOGIN SIMPLES ===
+# === LOGIN SIMPLES ===
 
 st.title("🔐 Login - MetaAlerta") user = st.text_input("Usuário") pw = st.text_input("Senha", type="password")
 
@@ -36,7 +36,7 @@ if user != "admin" or pw != "senha123": st.warning("Faça login para continuar."
 
 st.success("Login bem-sucedido!")
 
-=== SELEÇÃO DE MOEDAS ===
+# === SELEÇÃO DE MOEDAS ===
 
 st.header("💱 Seleção de Moedas") st.markdown("Escolha os pares que deseja monitorar:")
 
