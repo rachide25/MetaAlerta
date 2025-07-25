@@ -54,24 +54,43 @@ def set_background(png_file):
         st.markdown(page_bg, unsafe_allow_html=True)
 
 set_background("fundo_login.png")
+# === Controle de sessão para login persistente ===
+if "logado" not in st.session_state:
+    st.session_state.logado = False
 
-# === LAYOUT DE LOGIN CUSTOMIZADO ===
-st.markdown("""
-    <div class="login-container">
-        <div class="login-title">🔐 Acesso - MetaAlerta</div>
-    </div>
-""", unsafe_allow_html=True)
+# Lista de usuários válidos
+usuarios_validos = {
+    "admin": "rachide@123",
+    "rachidecarlosbilar908@gmail.com": "rachide@123"
+}
 
-user = st.text_input("Digite seu e-mail", key="user")
-pw = st.text_input("Digite sua senha", type="password", key="pw")
-mant = st.checkbox("Manter conectado")
+if not st.session_state.logado:
+    # === TELA DE LOGIN ===
+    st.markdown("""
+        <div class="login-container">
+            <div class="login-title">🔐 Acesso - MetaAlerta</div>
+        </div>
+    """, unsafe_allow_html=True)
 
-if st.button("Entrar"):
-    if user != "admin" or pw != "senha123":
-        st.warning("Credenciais incorretas. Tente novamente.")
-        st.stop()
-    else:
-        st.success("Login bem-sucedido!")
+    user = st.text_input("Digite seu e-mail", key="user")
+    pw = st.text_input("Digite sua senha", type="password", key="pw")
+    manter = st.checkbox("Manter conectado")
+
+    if st.button("Entrar"):
+        if user in usuarios_validos and pw == usuarios_validos[user]:
+            st.session_state.logado = True
+            st.success("Login bem-sucedido!")
+            st.rerun()  # Recarrega para atualizar tela
+        else:
+            st.warning("Credenciais incorretas. Tente novamente.")
+else:
+    # === USUÁRIO ESTÁ LOGADO: mostra tela principal ===
+    st.success("Você está logado no MetaAlerta ✅")
+
+    if st.button("🔒 Sair"):
+        st.session_state.logado = False
+        st.rerun()
+        
 
         # === SELEÇÃO DE MOEDAS ===
         st.header("💱 Seleção de Moedas")
