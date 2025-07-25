@@ -1,4 +1,7 @@
-import streamlit as st import base64 from datetime import datetime from twilio.rest import Client
+import streamlit as st 
+import base64 
+from datetime import datetime 
+from twilio.rest import Client
 
 === FUNÇÃO PARA DEFINIR FUNDO COM IMAGEM PERSONALIZADA ===
 
