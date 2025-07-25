@@ -1,91 +1,90 @@
-import streamlit as st
-import time
-import datetime
-from twilio.rest import Client
+import streamlit as st import base64 from datetime import datetime from twilio.rest import Client
 
-# ---------------- CONFIGURAÇÕES DA PÁGINA ----------------
-st.set_page_config(
-    page_title="MetaAlerta",
-    page_icon="📈",
-    layout="centered"
-)
+=== FUNÇÃO PARA DEFINIR FUNDO COM IMAGEM PERSONALIZADA ===
 
-# ---------------- BACKGROUND DA TELA DE LOGIN ----------------
-page_bg_img = f"""
-<style>
-[data-testid="stAppViewContainer"] > .main {{
-background-image: url("https://i.imgur.com/CJ7E4jk.png");
-background-size: cover;
-background-position: center;
-background-repeat: no-repeat;
-}}
+def set_background(png_file): with open(png_file, "rb") as f: data = f.read() encoded = base64.b64encode(data).decode() page_bg = f""" <style> .stApp {{ background-image: url("data:image/png;base64,{encoded}"); background-size: cover; background-position: center; background-repeat: no-repeat; }} </style> """ st.markdown(page_bg, unsafe_allow_html=True)
 
-[data-testid="stHeader"] {{
-background-color: rgba(0,0,0,0);
-}}
+set_background("fundo_login.png")  # Sua imagem de fundo
 
-[data-testid="stToolbar"] {{
-right: 2rem;
-}}
+=== ESTILO COM CORES PERSONALIZADAS ===
+
+st.markdown(""" <style> .stTextInput > div > div > input { background-color: #1f2937; color: white; border: 1px solid #10b981; }
+
+.stButton button {
+    background-color: #10b981;
+    color: white;
+    font-weight: bold;
+    border-radius: 10px;
+}
+
+.stAlert {
+    background-color: #4b5563;
+    color: white;
+}
 </style>
-"""
-st.markdown(page_bg_img, unsafe_allow_html=True)
 
-# ---------------- LOGIN SIMPLES ----------------
-if 'login' not in st.session_state:
-    st.session_state.login = False
+""", unsafe_allow_html=True)
 
-if not st.session_state.login:
-    st.title("🔐 Acesso")
-    email = st.text_input("Digite seu e-mail")
-    senha = st.text_input("Digite sua senha", type="password")
-    manter = st.checkbox("Manter conectado")
-    if st.button("Entrar"):
-        if email and senha:
-            st.session_state.login = True
-            st.experimental_rerun()
+=== LOGIN SIMPLES ===
+
+st.title("🔐 Login - MetaAlerta") user = st.text_input("Usuário") pw = st.text_input("Senha", type="password")
+
+if user != "admin" or pw != "senha123": st.warning("Faça login para continuar.") st.stop()
+
+st.success("Login bem-sucedido!")
+
+=== SELEÇÃO DE MOEDAS ===
+
+st.header("💱 Seleção de Moedas") st.markdown("Escolha os pares que deseja monitorar:")
+
+pares_disponiveis = { "EUR/USD": "🇪🇺 / 🇺🇸", "GBP/JPY": "🇬🇧 / 🇯🇵", "USD/JPY": "🇺🇸 / 🇯🇵", "AUD/USD": "🇦🇺 / 🇺🇸", "USD/CHF": "🇺🇸 / 🇨🇭", "EUR/JPY": "🇪🇺 / 🇯🇵", "USD/CAD": "🇺🇸 / 🇨🇦", "NZD/USD": "🇳🇿 / 🇺🇸", "EUR/GBP": "🇪🇺 / 🇬🇧", "GBP/USD": "🇬🇧 / 🇺🇸" }
+
+selecionados = st.multiselect( "Selecione até 5 pares de moedas:", options=list(pares_disponiveis.keys()), default=["EUR/USD", "GBP/JPY"] )
+
+tempo = st.radio("⏱️ Tipo de vela:", ["1 minuto", "5 minutos"]) duracao = st.slider("📅 Duração da análise (em minutos):", 10, 180, 60)
+
+st.markdown("---")
+
+if st.button("✅ Iniciar Análise"): if len(selecionados) == 0: st.error("Por favor, selecione pelo menos um par.") else: st.success(f"Iniciando análise para: {', '.join(selecionados)}")
+
+# === ALERTA GERADO ===
+    sinal = "🟢 COMPRA"
+    par = selecionados[0]
+    hora_entrada = datetime.now().strftime('%H:%M:%S')
+
+    st.header("🚨 Alerta de Entrada Detectado")
+    if sinal == "🟢 COMPRA":
+        st.markdown(f"<h2 style='color:limegreen;'>{sinal}</h2>", unsafe_allow_html=True)
+    else:
+        st.markdown(f"<h2 style='color:red;'>{sinal}</h2>", unsafe_allow_html=True)
+
+    st.write(f"**Par de moedas:** {par}")
+    st.write(f"**Hora de entrada:** {hora_entrada}")
+    st.write(f"**Tempo de vela:** {tempo}")
+
+    # === ENVIO WHATSAPP ===
+    st.markdown("---")
+    st.subheader("📩 Enviar este alerta via WhatsApp?")
+
+    enviar_wh = st.checkbox("Ativar envio WhatsApp")
+    num_destino = st.text_input("Número destino (+25885xxxxxxx)")
+    sid = st.secrets.get("ACxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "")
+    token = st.secrets.get("xxxxxxxxxxxxxxxxxxxxxxxxxxxx", "")
+    twilio_number = st.secrets.get("TWILIO_PHONE", "whatsapp:+14155238886")
+
+    mensagem = f"{sinal} em {par} às {hora_entrada} (vela de {tempo})"
+
+    if st.button("📤 Enviar alerta"):
+        if enviar_wh and all([sid, token, num_destino]):
+            try:
+                client = Client(sid, token)
+                client.messages.create(
+                    body=mensagem,
+                    from_=twilio_number,
+                    to=num_destino
+                )
+                st.success("Mensagem enviada com sucesso! ✅")
+            except Exception as e:
+                st.error(f"Erro ao enviar mensagem: {e}")
         else:
-            st.warning("Preencha e-mail e senha.")
-    st.stop()
-
-# ---------------- TELA DE SELEÇÃO ----------------
-st.title("📊 Escolha o Par de Moeda")
-
-moedas = [
-    "EUR/USD", "USD/JPY", "GBP/JPY", "AUD/USD", "USD/CHF",
-    "USD/CAD", "EUR/JPY", "NZD/USD", "GBP/USD", "EUR/CAD"
-]
-
-par = st.selectbox("Selecionar moeda:", moedas)
-
-if st.button("Pedir Análise"):
-    with st.spinner("Analisando suportes, tendências e RSI..."):
-        time.sleep(3)
-        st.success("Análise concluída!")
-
-    st.image("https://i.imgur.com/jT6f7kC.png", caption="Gráfico analisado", use_column_width=True)
-    
-    st.subheader("✅ Sinal Gerado")
-    st.markdown("**Moeda:** " + par)
-    st.markdown("**Recomendação:** `COMPRA` ✅")
-    
-    hora = datetime.datetime.now().strftime("%H:%M:%S")
-    st.markdown(f"**Horário ideal de entrada:** `{hora}`")
-    
-    st.markdown("**Tempo estimado:** 1 minuto")
-    
-    if st.button("📤 Enviar alerta para WhatsApp"):
-        # --- Twilio (você já configurou o SID e TOKEN)
-        try:
-            account_sid = "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            auth_token = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            client = Client(account_sid, auth_token)
-
-            message = client.messages.create(
-                from_='whatsapp:+14155238886',
-                body=f"📢 Alerta MetaAlerta:\nMoeda: {par}\nAção: COMPRA ✅\nHora: {hora}\nVelas: 1 minuto",
-                to='whatsapp:+258853318607'
-            )
-            st.success("📲 Alerta enviado com sucesso para o WhatsApp!")
-        except Exception as e:
-            st.error(f"Erro ao enviar alerta: {e}")
+            st.warning("Preencha todos os campos e ative o envio.")
