@@ -1,127 +1,123 @@
 import streamlit as st
-from datetime import datetime
-from twilio.rest import Client
+import yfinance as yf
+import pandas as pd
+import plotly.graph_objects as go
+import ta
+from PIL import Image
 
-# === Sessão de Estado ===
-if "logado" not in st.session_state:
-    st.session_state.logado = False
-if "alerta_gerado" not in st.session_state:
-    st.session_state.alerta_gerado = False
-if "sinal" not in st.session_state:
-    st.session_state.sinal = ""
-if "par" not in st.session_state:
-    st.session_state.par = ""
-if "hora_entrada" not in st.session_state:
-    st.session_state.hora_entrada = ""
-if "tempo" not in st.session_state:
-    st.session_state.tempo = ""
+# --- Configuração da Página ---
+st.set_page_config(page_title="MetaAlerta", layout="wide")
 
-# === Função para fundo com imagem personalizada ===
-def set_background(image_path):
-    with open(image_path, "rb") as image_file:
-        encoded = image_file.read().encode("base64").decode()
-    css = f"""
-    <style>
+# --- Fundo da Tela de Login ---
+def add_bg():
+    st.markdown(
+        f"""
+        <style>
         .stApp {{
-            background-image: url("data:image/jpg;base64,{encoded}");
+            background-image: url("fundo_login.png");
             background-size: cover;
             background-position: center;
+            background-repeat: no-repeat;
         }}
-    </style>
-    """
-    st.markdown(css, unsafe_allow_html=True)
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-# === Aplicar o fundo ===
-# set_background("imagem_fundo_sem_fundo.jpg")  # substitua pelo caminho da sua imagem
+# --- Dados de usuários fictícios ---
+usuarios = {
+    "rachidecarlosbilar908@gmail.com": "rachide@123",
+    "admin": "rachide@123"
+}
 
-# === Título ===
-st.title("🔐 MetaAlerta - Login")
+# --- Sessão de autenticação ---
+if 'autenticado' not in st.session_state:
+    st.session_state.autenticado = False
 
-# === Tela de Login ===
-if not st.session_state.logado:
+if not st.session_state.autenticado:
+    add_bg()
+    st.markdown("<h1 style='text-align: center; color: white;'>MetaAlerta</h1>", unsafe_allow_html=True)
     email = st.text_input("Email")
     senha = st.text_input("Senha", type="password")
 
     if st.button("Entrar"):
-        if (email == "admin" and senha == "rachide@123") or (email == "rachidecarlosbilar908@gmail.com" and senha == "rachide@123"):
-            st.session_state.logado = True
+        if email in usuarios and usuarios[email] == senha:
+            st.session_state.autenticado = True
+            st.experimental_rerun()
         else:
-            st.warning("Credenciais incorretas. Tente novamente.")
+            st.error("Credenciais incorretas. Tente novamente.")
     st.stop()
 
-# === Segunda tela - Análise Técnica ===
-st.success("Você está ligado na MetaAlerta 🔔")
+# --- Tela principal após login ---
+st.title("📈 MetaAlerta – Análise Técnica ao Vivo")
 
-moedas = ["EUR/USD", "USD/JPY", "GBP/USD", "BTC/USD"]
-selecionados = st.multiselect("Selecione os pares de moedas:", moedas)
+col1, col2 = st.columns(2)
+with col1:
+    moeda = st.selectbox("Selecione o par de moedas", ["EURUSD=X", "GBPUSD=X", "USDJPY=X", "BTC-USD", "ETH-USD"])
+with col2:
+    tempo = st.selectbox("Tempo da vela", ["1m", "5m", "15m", "1h", "1d"])
 
-tempos = ["1 minuto", "5 minutos", "15 minutos"]
-tempo = st.selectbox("Tempo de vela:", tempos)
+if st.button("🔍 Analisar"):
+    st.info("Buscando dados e analisando...")
 
-if st.button("✅ Iniciar Análise"):
-    if len(selecionados) == 0:
-        st.error("Por favor, selecione pelo menos um par.")
+    intervalo = {
+        "1m": "1m",
+        "5m": "5m",
+        "15m": "15m",
+        "1h": "60m",
+        "1d": "1d"
+    }[tempo]
+
+    df = yf.download(tickers=moeda, period="2d", interval=intervalo)
+
+    if df.empty:
+        st.error("Erro ao obter dados. Tente novamente.")
+        st.stop()
+
+    df['RSI'] = ta.momentum.RSIIndicator(df['Close']).rsi()
+    df['EMA20'] = ta.trend.EMAIndicator(df['Close'], window=20).ema_indicator()
+    df['EMA50'] = ta.trend.EMAIndicator(df['Close'], window=50).ema_indicator()
+
+    macd = ta.trend.MACD(df['Close'])
+    df['MACD'] = macd.macd()
+    df['MACD_signal'] = macd.macd_signal()
+
+    suporte = df['Close'].rolling(window=20).min().iloc[-1]
+    resistencia = df['Close'].rolling(window=20).max().iloc[-1]
+
+    fig = go.Figure()
+    fig.add_trace(go.Candlestick(
+        x=df.index,
+        open=df['Open'], high=df['High'],
+        low=df['Low'], close=df['Close'],
+        name='Candlestick'
+    ))
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA20'], line=dict(color='blue', width=1), name="EMA20"))
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA50'], line=dict(color='orange', width=1), name="EMA50"))
+    fig.add_hline(y=suporte, line_dash="dot", line_color="green", annotation_text="Suporte", annotation_position="bottom left")
+    fig.add_hline(y=resistencia, line_dash="dot", line_color="red", annotation_text="Resistência", annotation_position="top left")
+
+    fig.update_layout(height=500, width=1000, xaxis_rangeslider_visible=False)
+
+    st.plotly_chart(fig)
+
+    st.subheader("📊 Indicadores Técnicos")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
+    col2.metric("MACD", f"{df['MACD'].iloc[-1]:.4f}")
+    col3.metric("Sinal MACD", f"{df['MACD_signal'].iloc[-1]:.4f}")
+
+    if df['RSI'].iloc[-1] < 30:
+        st.success("Tendência: 🟢 COMPRA (RSI < 30)")
+    elif df['RSI'].iloc[-1] > 70:
+        st.error("Tendência: 🔴 VENDA (RSI > 70)")
     else:
-        st.success(f"Iniciando análise para: {', '.join(selecionados)}")
+        st.warning("Tendência: 🔄 Lateral (RSI entre 30 e 70)")
 
-        # Simulação do alerta
-        sinal = "🟢 COMPRA"
-        par = selecionados[0]
-        hora_entrada = datetime.now().strftime('%H:%M:%S')
+    st.caption(f"Suporte: {suporte:.4f} | Resistência: {resistencia:.4f}")
 
-        # Salvar no estado
-        st.session_state.alerta_gerado = True
-        st.session_state.sinal = sinal
-        st.session_state.par = par
-        st.session_state.hora_entrada = hora_entrada
-        st.session_state.tempo = tempo
-
-# === Mostrar alerta se foi gerado ===
-if st.session_state.alerta_gerado:
-    st.header("🚨 Alerta de Entrada Detectado")
-    sinal = st.session_state.sinal
-    par = st.session_state.par
-    hora_entrada = st.session_state.hora_entrada
-    tempo = st.session_state.tempo
-
-    if sinal == "🟢 COMPRA":
-        st.markdown(f"<h2 style='color:limegreen;'>{sinal}</h2>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<h2 style='color:red;'>{sinal}</h2>", unsafe_allow_html=True)
-
-    st.write(f"**Par de moedas:** {par}")
-    st.write(f"**Hora de entrada:** {hora_entrada}")
-    st.write(f"**Tempo de vela:** {tempo}")
-
-    # === Envio WhatsApp ===
-    st.markdown("---")
-    st.subheader("📩 Enviar este alerta via WhatsApp?")
-
-    enviar_wh = st.checkbox("Ativar envio WhatsApp")
-    num_destino = st.text_input("Número destino (+25885xxxxxxx)")
-    sid = st.text_input("ACxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-    token = st.text_input("xxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-    twilio_number = "whatsapp:+14155238886"
-
-    mensagem = f"{sinal} em {par} às {hora_entrada} (vela de {tempo})"
-
-    if st.button("📤 Enviar alerta"):
-        if enviar_wh and all([sid, token, num_destino]):
-            try:
-                client = Client(sid, token)
-                client.messages.create(
-                    body=mensagem,
-                    from_=twilio_number,
-                    to=num_destino
-                )
-                st.success("Mensagem enviada com sucesso! ✅")
-            except Exception as e:
-                st.error(f"Erro ao enviar mensagem: {e}")
-        else:
-            st.warning("Preencha todos os campos e ative o envio.")
-
-# === Botão de sair ===
+st.markdown("---")
 if st.button("Sair"):
-    for key in st.session_state.keys():
-        del st.session_state[key]
+    st.session_state.autenticado = False
     st.experimental_rerun()
+    
