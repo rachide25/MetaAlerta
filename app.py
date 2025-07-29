@@ -1,172 +1,122 @@
 import streamlit as st
-import base64
-from datetime import datetime
-from twilio.rest import Client
+import yfinance as yf
+import pandas as pd
+import plotly.graph_objects as go
+import ta
+from PIL import Image
 
-# === FUNÇÃO DE FUNDO PERSONALIZADO ===
-def set_background(png_file):
-    with open(png_file, "rb") as f:
-        data = f.read()
-        encoded = base64.b64encode(data).decode()
-        page_bg = f"""
+# --- Configuração da Página ---
+st.set_page_config(page_title="MetaAlerta", layout="wide")
+
+# --- Fundo da Tela de Login ---
+def add_bg():
+    st.markdown(
+        f"""
         <style>
         .stApp {{
-            background-image: url("data:image/png;base64,{encoded}");
+            background-image: url("fundo_login.png");
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
         }}
-        .login-container {{
-            background-color: rgba(0, 0, 0, 0.6);
-            padding: 2em;
-            border-radius: 15px;
-            width: 100%;
-            max-width: 400px;
-            margin: 5% auto;
-            color: white;
-        }}
-        .login-title {{
-            font-size: 2em;
-            text-align: center;
-            margin-bottom: 1em;
-        }}
-        input[type="text"], input[type="password"] {{
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 8px;
-            border: none;
-        }}
-        .login-btn button {{
-            width: 100%;
-            padding: 0.75em;
-            background-color: #00bfff;
-            color: white;
-            font-weight: bold;
-            border: none;
-            border-radius: 8px;
-        }}
-        .login-btn button:hover {{
-            background-color: #1e90ff;
-        }}
         </style>
-        """
-        st.markdown(page_bg, unsafe_allow_html=True)
-
-# === IMAGEM DE FUNDO ===
-set_background("fundo_login.png")
-
-# === ESTADO DE LOGIN ===
-if "logado" not in st.session_state:
-    st.session_state.logado = False
-
-# === TELAS ===
-if not st.session_state.logado:
-    # --- TELA DE LOGIN ---
-    st.markdown("""
-        <div class="login-container">
-            <div class="login-title">🔐 Acesso - MetaAlerta</div>
-        </div>
-    """, unsafe_allow_html=True)
-
-    user = st.text_input("Digite seu e-mail", key="user")
-    pw = st.text_input("Digite sua senha", type="password", key="pw")
-    mant = st.checkbox("Manter conectado")
-
-    # --- CREDENCIAIS ---
-    credenciais = {
-        "admin": "rachide@123",
-        "rachidecarlosbilar908@gmail.com": "rachide@123"
-    }
-
-    if st.button("Entrar"):
-        if user not in credenciais or pw != credenciais[user]:
-            st.warning("Credenciais incorretas. Tente novamente.")
-            st.stop()
-        else:
-            st.session_state.logado = True
-            st.experimental_rerun()
-
-else:
-    # --- ÁREA PROTEGIDA ---
-    st.success("✅ Você está logado no MetaAlerta!")
-
-    if st.button("🔒 Sair"):
-        st.session_state.logado = False
-        st.rerun()
-
-    # === SELEÇÃO DE MOEDAS ===
-    st.header("💱 Seleção de Moedas")
-    st.markdown("Escolha os pares que deseja monitorar:")
-
-    pares_disponiveis = {
-        "EUR/USD": "🇪 / 🇺",
-        "GBP/JPY": "🇬 / 🇯",
-        "USD/JPY": "🇺 / 🇯",
-        "AUD/USD": "🇦 / 🇺",
-        "USD/CHF": "🇺 / 🇨",
-        "EUR/JPY": "🇪 / 🇯",
-        "USD/CAD": "🇺 / 🇨",
-        "NZD/USD": "🇳 / 🇺",
-        "EUR/GBP": "🇪 / 🇬",
-        "GBP/USD": "🇬 / 🇺"
-    }
-
-    selecionados = st.multiselect(
-        "Selecione até 5 pares de moedas:",
-        options=list(pares_disponiveis.keys()),
-        default=["EUR/USD", "GBP/JPY"]
+        """,
+        unsafe_allow_html=True
     )
 
-    tempo = st.radio("⏱️ Tipo de vela:", ["1 minuto", "5 minutos"])
-    duracao = st.slider("🗓 Duração da análise (em minutos):", 10, 180, 60)
+# --- Dados de usuários fictícios ---
+usuarios = {
+    "admin": "rachide@123",
+    "rachidecarlosbilar@gmail.com": "rachide@123"
+}
 
-    st.markdown("---")
+# --- Sessão de autenticação ---
+if 'autenticado' not in st.session_state:
+    st.session_state.autenticado = False
 
-    if st.button("✅ Iniciar Análise"):
-        if len(selecionados) == 0:
-            st.error("Por favor, selecione pelo menos um par.")
+if not st.session_state.autenticado:
+    add_bg()
+    st.markdown("<h1 style='text-align: center; color: white;'>MetaAlerta</h1>", unsafe_allow_html=True)
+    email = st.text_input("Email")
+    senha = st.text_input("Senha", type="password")
+
+    if st.button("Entrar"):
+        if email in usuarios and usuarios[email] == senha:
+            st.session_state.autenticado = True
+            st.experimental_rerun()
         else:
-            st.success(f"Iniciando análise para: {', '.join(selecionados)}")
+            st.error("Credenciais incorretas. Tente novamente.")
+    st.stop()
 
-            # === ALERTA GERADO (simulação) ===
-            sinal = "🟢 COMPRA"
-            par = selecionados[0]
-            hora_entrada = datetime.now().strftime('%H:%M:%S')
+# --- Tela principal após login ---
+st.title("📈 MetaAlerta – Análise Técnica ao Vivo")
 
-            st.header("🚨 Alerta de Entrada Detectado")
-            if sinal == "🟢 COMPRA":
-                st.markdown(f"<h2 style='color:limegreen;'>{sinal}</h2>", unsafe_allow_html=True)
-            else:
-                st.markdown(f"<h2 style='color:red;'>{sinal}</h2>", unsafe_allow_html=True)
+col1, col2 = st.columns(2)
+with col1:
+    moeda = st.selectbox("Selecione o par de moedas", ["EURUSD=X", "GBPUSD=X", "USDJPY=X", "BTC-USD", "ETH-USD"])
+with col2:
+    tempo = st.selectbox("Tempo da vela", ["1m", "5m", "15m", "1h", "1d"])
 
-            st.write(f"**Par de moedas:** {par}")
-            st.write(f"**Hora de entrada:** {hora_entrada}")
-            st.write(f"**Tempo de vela:** {tempo}")
+if st.button("🔍 Analisar"):
+    st.info("Buscando dados e analisando...")
 
-            # === ENVIO WHATSAPP ===
-            st.markdown("---")
-            st.subheader("📩 Enviar este alerta via WhatsApp?")
+    intervalo = {
+        "1m": "1m",
+        "5m": "5m",
+        "15m": "15m",
+        "1h": "60m",
+        "1d": "1d"
+    }[tempo]
 
-            enviar_wh = st.checkbox("Ativar envio WhatsApp")
-            num_destino = st.text_input("Número destino (+25885xxxxxxx)")
-            sid = st.secrets.get("TWILIO_SID", "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-            token = st.secrets.get("TWILIO_AUTH_TOKEN", "xxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-            twilio_number = st.secrets.get("TWILIO_PHONE", "whatsapp:+14155238886")
+    df = yf.download(tickers=moeda, period="2d", interval=intervalo)
 
-            mensagem = f"{sinal} em {par} às {hora_entrada} (vela de {tempo})"
+    if df.empty:
+        st.error("Erro ao obter dados. Tente novamente.")
+        st.stop()
 
-            if st.button("📤 Enviar alerta"):
-                if enviar_wh and all([sid, token, num_destino]):
-                    try:
-                        client = Client(sid, token)
-                        client.messages.create(
-                            body=mensagem,
-                            from_=twilio_number,
-                            to=num_destino
-                        )
-                        st.success("Mensagem enviada com sucesso! ✅")
-                    except Exception as e:
-                        st.error(f"Erro ao enviar mensagem: {e}")
-                else:
-                    st.warning("Preencha todos os campos e ative o envio.")
+    df['RSI'] = ta.momentum.RSIIndicator(df['Close']).rsi()
+    df['EMA20'] = ta.trend.EMAIndicator(df['Close'], window=20).ema_indicator()
+    df['EMA50'] = ta.trend.EMAIndicator(df['Close'], window=50).ema_indicator()
+
+    macd = ta.trend.MACD(df['Close'])
+    df['MACD'] = macd.macd()
+    df['MACD_signal'] = macd.macd_signal()
+
+    suporte = df['Close'].rolling(window=20).min().iloc[-1]
+    resistencia = df['Close'].rolling(window=20).max().iloc[-1]
+
+    fig = go.Figure()
+    fig.add_trace(go.Candlestick(
+        x=df.index,
+        open=df['Open'], high=df['High'],
+        low=df['Low'], close=df['Close'],
+        name='Candlestick'
+    ))
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA20'], line=dict(color='blue', width=1), name="EMA20"))
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA50'], line=dict(color='orange', width=1), name="EMA50"))
+    fig.add_hline(y=suporte, line_dash="dot", line_color="green", annotation_text="Suporte", annotation_position="bottom left")
+    fig.add_hline(y=resistencia, line_dash="dot", line_color="red", annotation_text="Resistência", annotation_position="top left")
+
+    fig.update_layout(height=500, width=1000, xaxis_rangeslider_visible=False)
+
+    st.plotly_chart(fig)
+
+    st.subheader("📊 Indicadores Técnicos")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
+    col2.metric("MACD", f"{df['MACD'].iloc[-1]:.4f}")
+    col3.metric("Sinal MACD", f"{df['MACD_signal'].iloc[-1]:.4f}")
+
+    if df['RSI'].iloc[-1] < 30:
+        st.success("Tendência: 🟢 COMPRA (RSI < 30)")
+    elif df['RSI'].iloc[-1] > 70:
+        st.error("Tendência: 🔴 VENDA (RSI > 70)")
+    else:
+        st.warning("Tendência: 🔄 Lateral (RSI entre 30 e 70)")
+
+    st.caption(f"Suporte: {suporte:.4f} | Resistência: {resistencia:.4f}")
+
+st.markdown("---")
+if st.button("Sair"):
+    st.session_state.autenticado = False
+    st.experimental_rerun()
