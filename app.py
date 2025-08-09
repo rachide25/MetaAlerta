@@ -43,7 +43,8 @@ if not st.session_state.autenticado:
     if st.button("Entrar"):
         if email in usuarios and usuarios[email] == senha:
             st.session_state.autenticado = True
-            st.experimental_rerun()
+            # --- CORREÇÃO: Usando st.rerun() em vez de st.experimental_rerun() ---
+            st.rerun()
         else:
             st.error("Credenciais incorretas. Tente novamente.")
     st.stop()
@@ -119,4 +120,5 @@ if st.button("🔍 Analisar"):
 st.markdown("---")
 if st.button("Sair"):
     st.session_state.autenticado = False
-    st.experimental_rerun()
+    # --- CORREÇÃO: Usando st.rerun() em vez de st.experimental_rerun() ---
+    st.rerun()
