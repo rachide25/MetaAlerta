@@ -1,7 +1,5 @@
 streamlit
-pandas
 yfinance
-matplotlib
-numpy
+pandas
+plotly
 ta
-twilio
